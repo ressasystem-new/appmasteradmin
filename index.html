@@ -115,8 +115,8 @@
         };
 
         async function loadCloudData() {
-            if (WEB_APP_URL === "https://script.google.com/macros/s/AKfycbzide4QtkQXxVu7YNrppc9pD14ZucWkpIp1zQdzju-ILM0HjZV5J6y1rY5JKfCBibH4TA/exec" || !WEB_APP_URL) {
-                document.getElementById('kegiatanListContainer').innerHTML = "<p class='text-red-400'>Silakan masukkan URL Web App Google Apps Script di kode JavaScript terlebih dahulu.</p>";
+            if (!WEB_APP_URL || !WEB_APP_URL.includes("/exec")) {
+                document.getElementById('kegiatanListContainer').innerHTML = "<p class='text-red-400'>URL Web App Google Apps Script belum benar.</p>";
                 return;
             }
 
@@ -133,17 +133,24 @@
                 let html = "";
                 data.kegiatanList.forEach(keg => {
                     let isAktif = keg.status === "Aktif";
+                    const folderUrl = keg.folderUrl || "";
+                    const folderButton = folderUrl
+                        ? `<a href="${escapeAttr(folderUrl)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold rounded-lg">Buka Folder Foto</a>`
+                        : `<span class="text-amber-400 text-[10px]">Folder belum tersedia</span>`;
                     html += `
-                        <div class="flex items-center justify-between p-3 rounded-lg border ${isAktif ? 'border-blue-500/50 bg-blue-500/10' : 'border-slate-800 bg-slate-900/50'}">
-                            <div>
-                                <div class="font-bold text-slate-200 text-sm">${keg.nama}</div>
-                                <div class="text-slate-400 text-[11px]">Tanggal: ${formatTanggal(keg.tglMulai)} s/d ${formatTanggal(keg.tglSelesai)}</div>
-                            </div>
-                            <div>
-                                ${isAktif 
-                                    ? '<span class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-full border border-emerald-500/30">AKTIF</span>' 
-                                    : `<button onclick="setAktif('${keg.id}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold rounded-full border border-slate-700">Aktifkan</button>`
-                                }
+                        <div class="p-3 rounded-lg border ${isAktif ? 'border-blue-500/50 bg-blue-500/10' : 'border-slate-800 bg-slate-900/50'}">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="font-bold text-slate-200 text-sm break-words">${escapeHtml(keg.nama || 'Kegiatan tanpa nama')}</div>
+                                    <div class="text-slate-400 text-[11px] mt-1">Tanggal: ${formatTanggal(keg.tglMulai)} s/d ${formatTanggal(keg.tglSelesai)}</div>
+                                    <div class="mt-2">${folderButton}</div>
+                                </div>
+                                <div class="shrink-0">
+                                    ${isAktif 
+                                        ? '<span class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-full border border-emerald-500/30">AKTIF</span>' 
+                                        : `<button onclick="setAktif('${escapeAttr(keg.id)}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold rounded-full border border-slate-700">Aktifkan</button>`
+                                    }
+                                </div>
                             </div>
                         </div>
                     `;
@@ -188,10 +195,16 @@
                     body: JSON.stringify(payload)
                 });
                 let result = await res.json();
-                alert(result.message || "Kegiatan berhasil ditambahkan!");
+                if (result.status !== "success") {
+                    alert(result.message || "Kegiatan gagal disimpan. Periksa izin Google Apps Script/Drive.");
+                    return;
+                }
+                alert(result.message || "Kegiatan berhasil ditambahkan dan folder foto dibuat.");
                 document.getElementById('namaKegiatan').value = "";
                 document.getElementById('instansiKegiatan').value = "";
-                loadCloudData();
+                document.getElementById('tglMulai').value = "";
+                document.getElementById('tglSelesai').value = "";
+                await loadCloudData();
             } catch(err) {
                 alert("Gagal menyimpan kegiatan ke cloud.");
             } finally {
@@ -286,6 +299,16 @@
             } catch(e) {
                 alert("Gagal mengunduh rekap absensi.");
             }
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "").replace(/[&<>"']/g, function(ch) {
+                return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch];
+            });
+        }
+
+        function escapeAttr(value) {
+            return escapeHtml(value).replace(/`/g, "&#96;");
         }
 
         function formatTanggal(str) {
